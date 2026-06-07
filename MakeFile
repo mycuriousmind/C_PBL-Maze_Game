@@ -1,0 +1,98 @@
+# Makefile
+# --------
+# Automates compiling all 5 source files into one executable.
+#
+# HOW MAKE WORKS:
+#   'make' reads this file and follows rules to build targets.
+#   Each rule has the format:
+#
+#     target: dependencies
+#     [TAB] command
+#
+#   Make only rebuilds a target if its dependencies have changed
+#   since it was last built — saving compile time on big projects.
+#
+# IMPORTANT: The indented lines MUST use a real TAB character,
+#   not spaces. Most editors handle this automatically in Makefiles.
+
+# ---------------------------------------------------------------
+# VARIABLES
+# ---------------------------------------------------------------
+
+# CC: the C compiler to use
+CC = gcc
+
+# CFLAGS: compiler options applied to every compilation step
+#   -Wall        : enable all common warnings
+#   -Wextra      : enable extra warnings beyond -Wall
+#   -std=c99     : enforce C99 standard
+#   -g           : include debug symbols (for gdb / valgrind)
+#   -pedantic    : reject non-standard extensions
+CFLAGS = -Wall -Wextra -std=c99 -g -pedantic
+
+# TARGET: the name of the final executable
+TARGET = bot
+
+# SRCS: all C source files in the project
+SRCS = main.c maze.c astar.c
+
+# OBJS: derive object file names from source names
+#   This substitution replaces every ".c" with ".o"
+#   So OBJS = main.o maze.o astar.o
+OBJS = $(SRCS:.c=.o)
+
+
+# ---------------------------------------------------------------
+# DEFAULT TARGET: 'make' or 'make all'
+# Builds the final executable from all object files.
+# ---------------------------------------------------------------
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+	@echo ""
+	@echo "  ✅ Build successful! Run with: ./$(TARGET)"
+	@echo ""
+
+
+# ---------------------------------------------------------------
+# PATTERN RULE: compile any .c file into a .o object file
+#   $<  = the first dependency (the .c source file)
+#   $@  = the target name (the .o object file)
+# ---------------------------------------------------------------
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+# ---------------------------------------------------------------
+# EXPLICIT HEADER DEPENDENCIES
+# If a header changes, all files that include it must recompile.
+# ---------------------------------------------------------------
+main.o:  main.c  maze.h astar.h
+maze.o:  maze.c  maze.h
+astar.o: astar.c astar.h maze.h
+
+
+# ---------------------------------------------------------------
+# UTILITY TARGETS
+# ---------------------------------------------------------------
+
+# 'make clean' — removes all compiled files so you can
+# do a completely fresh build. Useful when debugging.
+clean:
+	rm -f $(OBJS) $(TARGET)
+	@echo "  🧹 Cleaned all build artifacts."
+
+# 'make run' — build and immediately launch the game
+run: all
+	./$(TARGET)
+
+# 'make valgrind' — run under Valgrind to check for memory leaks
+# (install with: sudo apt install valgrind)
+valgrind: all
+	valgrind --leak-check=full --track-origins=yes ./$(TARGET)
+
+# Declare these as "phony" targets — they don't produce files,
+# so Make should always run them when asked, even if a file
+# with that name somehow exists in the directory.
+.PHONY: all clean run valgrind

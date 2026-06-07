@@ -1,0 +1,61 @@
+# Makefile for Maze Game with Raylib
+# Builds both native (Raylib) and web (Emscripten) versions
+
+PROJECT_NAME = maze_game
+RAYLIB_PATH = ./raylib
+RAYLIB_SRC = $(RAYLIB_PATH)/src
+RAYLIB_LIB = $(RAYLIB_SRC)/libraylib.a
+
+# Source files
+SOURCES = main.c maze.c astar.c
+OBJECTS = $(SOURCES:.c=.o)
+
+# Compiler flags for native build
+CC = gcc
+CFLAGS = -Wall -O2 -I$(RAYLIB_SRC)
+LDFLAGS = -L$(RAYLIB_SRC) -lraylib -lopengl32 -lgdi32 -lwinmm -lpthread
+
+# Targets
+.PHONY: help build-raylib build clean web clean-all
+
+help:
+	@echo "Maze Game Build System"
+	@echo "====================="
+	@echo "make build-raylib    - Compile Raylib library"
+	@echo "make build           - Compile native game (requires Raylib built)"
+	@echo "make web             - Compile web version with Emscripten"
+	@echo "make clean           - Remove game binaries"
+	@echo "make clean-all       - Remove all built files"
+
+# Build Raylib library
+build-raylib:
+	@echo "Building Raylib..."
+	cd $(RAYLIB_SRC) && $(MAKE) -f Makefile PLATFORM=PLATFORM_DESKTOP
+	@echo "Raylib built successfully!"
+
+# Build native game
+build: $(RAYLIB_LIB) $(OBJECTS)
+	@echo "Linking native game..."
+	$(CC) -o $(PROJECT_NAME).exe $(OBJECTS) $(LDFLAGS)
+	@echo "Native game built: $(PROJECT_NAME).exe"
+
+# Compile object files
+%.o: %.c
+	$(CC) -c $< $(CFLAGS)
+
+# Build web version with Emscripten
+web:
+	@echo "Building web version with Emscripten..."
+	emcc $(SOURCES) -o index.html -s WASM=1
+	@echo "Web version built: index.html"
+
+# Clean
+clean:
+	@del /q *.o $(PROJECT_NAME).exe 2>nul || true
+	@echo "Cleaned object files and executable"
+
+clean-all: clean
+	@echo "Cleaning Raylib build..."
+	cd $(RAYLIB_SRC) && $(MAKE) -f Makefile clean 2>nul || true
+	@del /q index.* 2>nul || true
+	@echo "All cleaned"
