@@ -1,38 +1,28 @@
+/*$env:Path = "C:\emsdk;C:\emsdk\upstream\emscripten;" + $env:Path
+emcc --version
+This is for setting the path manually(for just the current session)*/
+
 #include<stdio.h>
 #include<stdlib.h>
 #include<ctype.h>
+#include "raylib.h"
 #include "maze.h"
 #include "astar.h"
 
-//SECTION 1: Terminal handling for raw mode
+#define WINDOW_WIDTH 650
+#define WINDOW_HEIGHT 700
 
-#ifdef _WIN32
-    #include<conio.h>
-#else
-    #include<termios.h>
-    #include<unistd.h>
-    static struct termios original_termios;
-#endif
+//SECTION 2: Input handling
 
-void enable_raw_mode(void) {
-#ifndef _WIN32
-    struct termios raw;
-    tcgetattr(STDIN_FILENO, &original_termios);
-    raw = original_termios;
-    raw.c_lflag &= ~(ICANON| ECHO);
-    raw.c_cc[VMIN] = 0;
-    raw.c_cc[VTIME] = 1;
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
-#endif
+char get_player_input(void) {
+    if(IsKeyPressed(KEY_W)) return 'w';
+    if(IsKeyPressed(KEY_A)) return 'a';
+    if(IsKeyPressed(KEY_S)) return 's';
+    if(IsKeyPressed(KEY_D)) return 'd';
+    return 0;
 }
 
-void restore_terminal(void) {
-#ifndef _WIN32
-    tcsetattr(STDIN_FILENO, TCSANOW, &original_termios);
-#endif
-}
-
-//SECTION 2: Game state struct
+//SECTION 3: Game state struct
 
 typedef struct {
     int player_row;
@@ -45,21 +35,7 @@ typedef struct {
     int game_over;
 }GameState;
 
-//SECTION 3: Game Logic
-
-char get_player_input(void) {
-    char ch;
-#ifdef _WIN32
-    ch = (char)_getch();
-#else
-    ch = (char)getchar();
-#endif
-    ch = (char)tolower((unsigned char)ch);
-    if(ch=='w'||ch=='a'||ch=='s'||ch=='d') {
-        return ch;
-    }
-    return 0;
-}
+//SECTION 4: Game Logic
 
 void move_player(GameState *state, char direction) {
     int new_row = state->player_row;
@@ -84,8 +60,18 @@ void move_bot(GameState *state) {
 }
 
 void print_hud(GameState *state) {
-    printf(" Turn: %-4d Player: (%d,%d) Bot: (%d,%d)\n",state->turn, state->player_row, state->player_col, state->bot_row, state->bot_col);
-    printf("Controls: W=Up S=Down A=Left D=Right\n");
+    char turn_text[100];
+    char player_text[100];
+    char controls_text[200];
+    
+    snprintf(turn_text, sizeof(turn_text), "Turn: %-4d", state->turn);
+    snprintf(player_text, sizeof(player_text), "Player: (%d,%d)  Bot: (%d,%d)", 
+             state->player_row, state->player_col, state->bot_row, state->bot_col);
+    snprintf(controls_text, sizeof(controls_text), "Controls: W=Up  S=Down  A=Left  D=Right  Q=Quit");
+    
+    DrawText(turn_text, 20, 20, 20, BLACK);
+    DrawText(player_text, 20, 50, 16, DARKBLUE);
+    DrawText(controls_text, 20, 670, 14, GRAY);
 }
 
 int check_game_over(GameState *state) {
@@ -101,57 +87,83 @@ int check_game_over(GameState *state) {
 }
 
 void print_game_over_screen(int result) {
-    printf("\033[H\033[J");
-    printf("\n\n");
-    if(result==1) {
-        printf("You successfully escaped the maze!\n");
-    } 
-    else {
-        printf("You failed!\n");
+    DrawRectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, (Color){200, 200, 200, 200});
+    
+    if(result == 1) {
+        DrawText("Congratulations!", 150, 200, 40, DARKGREEN);
+        DrawText("You escaped the maze!", 120, 280, 30, DARKGREEN);
+    } else {
+        DrawText("Game Over!", 180, 200, 40, RED);
+        DrawText("The bot caught you!", 140, 280, 30, RED);
     }
+    
+    DrawText("Press ESC to exit", 180, 400, 20, GRAY);
 }
 
-//SECTION 4: Main game loop
+//SECTION 5: Main game loop
 
 int main(void) {
+    // Initialize Raylib window
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Maze Escape Game");
+    SetTargetFPS(10);  // 10 FPS for game logic
+    
     GameState state;
     state.player_row = 1;
     state.player_col = 1;
-    state.bot_row = MAZE_ROWS-2;
-    state.bot_col = MAZE_COLS-2;
+    state.bot_row = MAZE_ROWS - 2;
+    state.bot_col = MAZE_COLS - 2;
     state.exit_row = 7;
     state.exit_col = 13;
     state.turn = 1;
     state.game_over = 0;
 
-    atexit(restore_terminal);
-    enable_raw_mode();
-
-    while(!state.game_over) {
-        draw_maze(state.player_row, state.player_col, state.bot_row, state.bot_col, state.exit_row, state.exit_col);
-        print_hud(&state);
-        char input = get_player_input();
-        if(input=='q') {
-            printf("Quitting game. Thanks for playing!\n");
+    // Main game loop
+    while (!WindowShouldClose()) {
+        // Check for quit key
+        if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_ESCAPE)) {
             break;
         }
-        if(input==0) {
-            continue;
-        }
-        move_player(&state, input);
-
-        {
+        
+        // Get player input
+        char input = get_player_input();
+        
+        // Process input
+        if (input != 0) {
+            move_player(&state, input);
+            
+            // Check if game is over after player moves
             int result = check_game_over(&state);
-            if(result!=0) {
-                draw_maze(state.player_row, state.player_col, state.bot_row, state.bot_col, state.exit_row, state.exit_col);
-                print_game_over_screen(result);
+            if (result != 0) {
                 state.game_over = 1;
-                break;
+            } else {
+                // Bot moves if game not over
+                move_bot(&state);
+                
+                // Check if bot caught player
+                result = check_game_over(&state);
+                if (result != 0) {
+                    state.game_over = 1;
+                }
+                
+                state.turn++;
             }
         }
-
-        state.turn++;
+        
+        // Draw
+        BeginDrawing();
+        ClearBackground(LIGHTGRAY);
+        
+        if (state.game_over) {
+            int result = (state.bot_row == state.player_row && state.bot_col == state.player_col) ? -1 : 1;
+            print_game_over_screen(result);
+        } else {
+            draw_maze(state.player_row, state.player_col, state.bot_row, state.bot_col, state.exit_row, state.exit_col);
+            print_hud(&state);
+        }
+        
+        EndDrawing();
     }
-
+    
+    CloseWindow();
     return 0;
 }
