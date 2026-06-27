@@ -1,98 +1,76 @@
 # Makefile
 # --------
-# Automates compiling all 5 source files into one executable.
+# Automates compiling for both native Windows and Emscripten (web).
 #
-# HOW MAKE WORKS:
-#   'make' reads this file and follows rules to build targets.
-#   Each rule has the format:
-#
-#     target: dependencies
-#     [TAB] command
-#
-#   Make only rebuilds a target if its dependencies have changed
-#   since it was last built — saving compile time on big projects.
-#
-# IMPORTANT: The indented lines MUST use a real TAB character,
-#   not spaces. Most editors handle this automatically in Makefiles.
+# Usage:
+#   make native    — build native Windows .exe
+#   make web       — build Emscripten .html/.js/.wasm
+#   make all       — build both
+#   make run       — build & launch native exe
+#   make serve     — build web & start local server on port 8080
+#   make clean     — remove build artifacts
 
 # ---------------------------------------------------------------
 # VARIABLES
 # ---------------------------------------------------------------
 
-# CC: the C compiler to use
-CC = gcc
-
-# CFLAGS: compiler options applied to every compilation step
-#   -Wall        : enable all common warnings
-#   -Wextra      : enable extra warnings beyond -Wall
-#   -std=c99     : enforce C99 standard
-#   -g           : include debug symbols (for gdb / valgrind)
-#   -pedantic    : reject non-standard extensions
-CFLAGS = -Wall -Wextra -std=c99 -g -pedantic
-
-# TARGET: the name of the final executable
-TARGET = bot
-
-# SRCS: all C source files in the project
+# Source files
 SRCS = main.c maze.c astar.c
 
-# OBJS: derive object file names from source names
-#   This substitution replaces every ".c" with ".o"
-#   So OBJS = main.o maze.o astar.o
-OBJS = $(SRCS:.c=.o)
+# Raylib paths (source repo in project)
+RAYLIB_SRC = ./raylib/src
+RAYLIB_INCLUDE = -I$(RAYLIB_SRC)
 
+# --- Native (gcc) ---
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99 -g -pedantic
+NATIVE_TARGET = maze_game.exe
+NATIVE_LIBS = -L$(RAYLIB_SRC) -lraylib -lgdi32 -lwinmm -lm
+
+# --- Emscripten (emcc) ---
+EMCC = emcc
+EMCFLAGS = -Os -Wall -DPLATFORM_WEB
+WEB_TARGET = index.html
+WEB_LIBS = -L$(RAYLIB_SRC) -lraylib_web -s USE_GLFW=3 -s ASYNCIFY
+SHELL_FILE = --shell-file $(RAYLIB_SRC)/shell.html
+
+# Uncomment and add audio files when they exist:
+# PRELOAD = --preload-file win.wav --preload-file lose.wav
 
 # ---------------------------------------------------------------
-# DEFAULT TARGET: 'make' or 'make all'
-# Builds the final executable from all object files.
+# TARGETS
 # ---------------------------------------------------------------
-all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+all: native web
+
+# --- Native build ---
+native: $(NATIVE_TARGET)
+
+$(NATIVE_TARGET): $(SRCS)
+	$(CC) $(CFLAGS) $(RAYLIB_INCLUDE) -o $(NATIVE_TARGET) $(SRCS) $(NATIVE_LIBS)
 	@echo ""
-	@echo "  ✅ Build successful! Run with: ./$(TARGET)"
+	@echo "  ✅ Native build successful! Run with: ./$(NATIVE_TARGET)"
 	@echo ""
 
+# --- Web build ---
+web: $(WEB_TARGET)
 
-# ---------------------------------------------------------------
-# PATTERN RULE: compile any .c file into a .o object file
-#   $<  = the first dependency (the .c source file)
-#   $@  = the target name (the .o object file)
-# ---------------------------------------------------------------
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+$(WEB_TARGET): $(SRCS)
+	$(EMCC) $(EMCFLAGS) $(RAYLIB_INCLUDE) -o $(WEB_TARGET) $(SRCS) $(WEB_LIBS) $(SHELL_FILE) $(PRELOAD)
+	@echo ""
+	@echo "  ✅ Web build successful! Serve with: make serve"
+	@echo ""
 
+# --- Utility targets ---
+run: native
+	./$(NATIVE_TARGET)
 
-# ---------------------------------------------------------------
-# EXPLICIT HEADER DEPENDENCIES
-# If a header changes, all files that include it must recompile.
-# ---------------------------------------------------------------
-main.o:  main.c  maze.h astar.h
-maze.o:  maze.c  maze.h
-astar.o: astar.c astar.h maze.h
+serve: web
+	python -m http.server 8080
 
-
-# ---------------------------------------------------------------
-# UTILITY TARGETS
-# ---------------------------------------------------------------
-
-# 'make clean' — removes all compiled files so you can
-# do a completely fresh build. Useful when debugging.
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(NATIVE_TARGET) index.html index.js index.wasm index.data
+	rm -f *.o
 	@echo "  🧹 Cleaned all build artifacts."
 
-# 'make run' — build and immediately launch the game
-run: all
-	./$(TARGET)
-
-# 'make valgrind' — run under Valgrind to check for memory leaks
-# (install with: sudo apt install valgrind)
-valgrind: all
-	valgrind --leak-check=full --track-origins=yes ./$(TARGET)
-
-# Declare these as "phony" targets — they don't produce files,
-# so Make should always run them when asked, even if a file
-# with that name somehow exists in the directory.
-.PHONY: all clean run valgrind
+.PHONY: all native web run serve clean
