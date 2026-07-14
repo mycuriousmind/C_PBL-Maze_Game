@@ -1,0 +1,17 @@
+[
+    {
+        "directory": "c:/Users/swoja/C_PBL",
+        "command": "gcc -Wall -Wextra -std=c99 -g -pedantic -Ic:/Users/swoja/C_PBL/raylib/src -c main.c -o main.o",
+        "file": "main.c"
+    },
+    {
+        "directory": "c:/Users/swoja/C_PBL",
+        "command": "gcc -Wall -Wextra -std=c99 -g -pedantic -Ic:/Users/swoja/C_PBL/raylib/src -c maze.c -o maze.o",
+        "file": "maze.c"
+    },
+    {
+        "directory": "c:/Users/swoja/C_PBL",
+        "command": "gcc -Wall -Wextra -std=c99 -g -pedantic -Ic:/Users/swoja/C_PBL/raylib/src -c astar.c -o astar.o",
+        "file": "astar.c"
+    }
+]
